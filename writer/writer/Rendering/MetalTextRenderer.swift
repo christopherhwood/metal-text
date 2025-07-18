@@ -18,7 +18,6 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
     private let commandQueue: MTLCommandQueue
     private var pipelineState: MTLRenderPipelineState!
     private var cursorPipelineState: MTLRenderPipelineState!
-    private var experimentalPipelineState: MTLRenderPipelineState?
     private var blurPipelineState: MTLComputePipelineState!
     
     // Buffers
@@ -46,9 +45,6 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
     private var cursorVertexBuffer: MTLBuffer!
     private var cursorIndexBuffer: MTLBuffer!
     private var cursorHeight: Float = 96.0 // Default height for 48pt font at 2x scale
-    
-    // Shader selection
-    var useExperimentalShader = false
     
     // MARK: - Initialization
     
@@ -135,17 +131,6 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
         cursorPipelineDescriptor.fragmentFunction = cursorFragmentFunction
         
         cursorPipelineState = try device.makeRenderPipelineState(descriptor: cursorPipelineDescriptor)
-        
-        // Experimental LCD text pipeline
-        if let lcdFragmentFunction = library.makeFunction(name: "textFragmentShaderLCD") {
-            print("Found experimental LCD shader")
-            let lcdPipelineDescriptor = textPipelineDescriptor.copy() as! MTLRenderPipelineDescriptor
-            lcdPipelineDescriptor.fragmentFunction = lcdFragmentFunction
-            experimentalPipelineState = try device.makeRenderPipelineState(descriptor: lcdPipelineDescriptor)
-        } else {
-            print("Experimental shader not found, using default")
-            experimentalPipelineState = nil
-        }
         
         // Blur compute pipeline
         let blurFunction = library.makeFunction(name: "gaussianBlur")
@@ -262,12 +247,8 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
         // Update uniforms
         updateUniforms()
         
-        // Draw text - choose shader based on setting
-        if useExperimentalShader, let experimental = experimentalPipelineState {
-            renderEncoder.setRenderPipelineState(experimental)
-        } else {
-            renderEncoder.setRenderPipelineState(pipelineState)
-        }
+        // Draw text
+        renderEncoder.setRenderPipelineState(pipelineState)
         renderEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBuffer(uniformBuffer, offset: 0, index: 1)
         renderEncoder.setFragmentBuffer(uniformBuffer, offset: 0, index: 1)

@@ -47,7 +47,6 @@ class ViewController: NSViewController {
     
     private var splitView: NSSplitView!
     private var writerTextView: WriterTextView!
-    private var writerTextViewExperimental: WriterTextView!
     private var nsTextView: NSTextView!
     private var scrollView: NSScrollView!
 
@@ -62,12 +61,11 @@ class ViewController: NSViewController {
         
         // Set window size when view appears
         if let window = view.window {
-            window.setContentSize(NSSize(width: 1800, height: 600))
+            window.setContentSize(NSSize(width: 1200, height: 600))
             window.center()
             
             // Set split positions after window resize
             splitView.setPosition(600, ofDividerAt: 0)
-            splitView.setPosition(1200, ofDividerAt: 1)
             
             // Debug: Print responder chain
             print("Initial first responder: \(window.firstResponder)")
@@ -87,7 +85,7 @@ class ViewController: NSViewController {
         let leftContainer = NSView()
         leftContainer.translatesAutoresizingMaskIntoConstraints = false
         
-        let leftLabel = NSTextField(labelWithString: "Metal Text View (Original)")
+        let leftLabel = NSTextField(labelWithString: "Metal Text View")
         leftLabel.font = NSFont.boldSystemFont(ofSize: 14)
         leftLabel.textColor = .labelColor
         leftLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -96,24 +94,7 @@ class ViewController: NSViewController {
         // Create writer text view
         writerTextView = WriterTextView(frame: .zero)
         writerTextView.translatesAutoresizingMaskIntoConstraints = false
-        writerTextView.useExperimentalShader = false
         leftContainer.addSubview(writerTextView)
-        
-        // Create middle container with experimental Metal view
-        let middleContainer = NSView()
-        middleContainer.translatesAutoresizingMaskIntoConstraints = false
-        
-        let middleLabel = NSTextField(labelWithString: "Metal Text View (LCD Experimental)")
-        middleLabel.font = NSFont.boldSystemFont(ofSize: 14)
-        middleLabel.textColor = .labelColor
-        middleLabel.translatesAutoresizingMaskIntoConstraints = false
-        middleContainer.addSubview(middleLabel)
-        
-        // Create experimental writer text view
-        writerTextViewExperimental = WriterTextView(frame: .zero)
-        writerTextViewExperimental.translatesAutoresizingMaskIntoConstraints = false
-        writerTextViewExperimental.useExperimentalShader = true
-        middleContainer.addSubview(writerTextViewExperimental)
         
         // Create right container with label
         let rightContainer = NSView()
@@ -196,17 +177,6 @@ class ViewController: NSViewController {
             writerTextView.bottomAnchor.constraint(equalTo: leftContainer.bottomAnchor)
         ])
         
-        // Set up constraints for middle container
-        NSLayoutConstraint.activate([
-            middleLabel.topAnchor.constraint(equalTo: middleContainer.topAnchor, constant: 10),
-            middleLabel.centerXAnchor.constraint(equalTo: middleContainer.centerXAnchor),
-            
-            writerTextViewExperimental.topAnchor.constraint(equalTo: middleLabel.bottomAnchor, constant: 10),
-            writerTextViewExperimental.leadingAnchor.constraint(equalTo: middleContainer.leadingAnchor),
-            writerTextViewExperimental.trailingAnchor.constraint(equalTo: middleContainer.trailingAnchor),
-            writerTextViewExperimental.bottomAnchor.constraint(equalTo: middleContainer.bottomAnchor)
-        ])
-        
         // Set up constraints for right container
         NSLayoutConstraint.activate([
             rightLabel.topAnchor.constraint(equalTo: rightContainer.topAnchor, constant: 10),
@@ -220,7 +190,6 @@ class ViewController: NSViewController {
         
         // Add containers to split view
         splitView.addSubview(leftContainer)
-        splitView.addSubview(middleContainer)
         splitView.addSubview(rightContainer)
         
         view.addSubview(splitView)
@@ -228,7 +197,6 @@ class ViewController: NSViewController {
         // Set minimum sizes for split view panes
         splitView.setHoldingPriority(.defaultLow, forSubviewAt: 0)
         splitView.setHoldingPriority(.defaultLow, forSubviewAt: 1)
-        splitView.setHoldingPriority(.defaultLow, forSubviewAt: 2)
     }
 
     override var representedObject: Any? {

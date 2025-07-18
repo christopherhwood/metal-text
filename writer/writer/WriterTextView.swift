@@ -50,13 +50,6 @@ class WriterTextView: NSView, NSTextInputClient {
         return window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
     }
     
-    // Public property to control which shader to use
-    var useExperimentalShader: Bool = false {
-        didSet {
-            renderer?.useExperimentalShader = useExperimentalShader
-        }
-    }
-    
     // MARK: - Initialization
     
     override init(frame frameRect: NSRect) {
@@ -80,9 +73,6 @@ class WriterTextView: NSView, NSTextInputClient {
         
         renderer = MetalTextRenderer(metalView: metalView)
         metalView.delegate = renderer
-        
-        // Apply experimental shader setting if it was set before renderer was created
-        renderer?.useExperimentalShader = useExperimentalShader
         
         if let device = metalView.device {
             fontAtlasGenerator = FontAtlasGenerator(device: device)
