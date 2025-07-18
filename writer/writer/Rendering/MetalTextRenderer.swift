@@ -39,6 +39,12 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
     // Rendering state
     private var indexCount: Int = 6 // Default for test quad
     
+    // Cursor state
+    private var cursorVisible = false
+    private var cursorPosition = SIMD2<Float>(0, 0)
+    private var cursorVertexBuffer: MTLBuffer!
+    private var cursorIndexBuffer: MTLBuffer!
+    
     // MARK: - Initialization
     
     init?(metalView: MTKView) {
@@ -56,16 +62,13 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
         metalView.clearColor = MTLClearColor(red: 0.95, green: 0.95, blue: 0.95, alpha: 1.0) // Light gray background
         metalView.colorPixelFormat = .bgra8Unorm
         
-        // Enable 120Hz if available
-        if #available(macOS 12.0, *) {
-            metalView.preferredFramesPerSecond = 120
-        } else {
-            metalView.preferredFramesPerSecond = 60
-        }
+        // Enable 120Hz rendering
+        metalView.preferredFramesPerSecond = 120
         
         do {
             try setupPipeline()
             setupBuffers()
+            setupCursorBuffers()
             createPlaceholderTexture()
         } catch {
             print("Failed to setup Metal pipeline: \(error)")
@@ -259,9 +262,19 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
                                           indexBuffer: indexBuffer,
                                           indexBufferOffset: 0)
         
-        // Draw cursor
-        renderEncoder.setRenderPipelineState(cursorPipelineState)
-        // Cursor drawing would go here
+        // Draw cursor if visible
+        if cursorVisible {
+            renderEncoder.setRenderPipelineState(cursorPipelineState)
+            renderEncoder.setVertexBuffer(cursorVertexBuffer, offset: 0, index: 0)
+            renderEncoder.setVertexBuffer(uniformBuffer, offset: 0, index: 1)
+            renderEncoder.setFragmentBuffer(uniformBuffer, offset: 0, index: 1)
+            
+            renderEncoder.drawIndexedPrimitives(type: .triangle,
+                                              indexCount: 6,
+                                              indexType: .uint16,
+                                              indexBuffer: cursorIndexBuffer,
+                                              indexBufferOffset: 0)
+        }
         
         renderEncoder.endEncoding()
         
@@ -278,8 +291,8 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
         uniforms.projectionMatrix = projectionMatrix
         uniforms.textColor = SIMD4<Float>(0.1, 0.1, 0.1, 1.0) // Dark gray text
         uniforms.time = Float(currentTime)
-        uniforms.cursorPosition = SIMD2<Float>(0.0, 0.0)
-        uniforms.cursorIntensity = 1.0
+        uniforms.cursorPosition = cursorPosition
+        uniforms.cursorIntensity = cursorVisible ? 1.0 : 0.0
         uniforms.padding = SIMD2<Float>(0.0, 0.0)
         
         uniformBuffer.contents().copyMemory(from: &uniforms, byteCount: MemoryLayout<Uniforms>.size)
@@ -322,6 +335,54 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
             
             indexCount = indices.count
         }
+    }
+    
+    func updateCursorVisibility(_ visible: Bool) {
+        cursorVisible = visible
+    }
+    
+    func updateCursorPosition(_ position: CGPoint) {
+        // Convert to Metal coordinate space
+        cursorPosition = SIMD2<Float>(Float(position.x), Float(position.y))
+        updateCursorBuffers()
+    }
+    
+    // MARK: - Cursor Setup
+    
+    private func setupCursorBuffers() {
+        // Create a thin vertical rectangle for the cursor
+        let cursorWidth: Float = 2.0
+        let cursorHeight: Float = 60.0 // Match approximate font height
+        
+        // Offset cursor to align with text baseline
+        // Text typically extends from baseline down by descent and up by ascent
+        let baselineOffset: Float = -15.0 // Adjust based on font metrics
+        
+        let vertices: [Float] = [
+            // Position X, Y, Texture U, V
+            0,            baselineOffset,                      0, 1,  // Bottom left
+            cursorWidth,  baselineOffset,                      1, 1,  // Bottom right
+            cursorWidth,  baselineOffset + cursorHeight,       1, 0,  // Top right
+            0,            baselineOffset + cursorHeight,       0, 0   // Top left
+        ]
+        
+        let indices: [UInt16] = [
+            0, 1, 2,  // First triangle
+            2, 3, 0   // Second triangle
+        ]
+        
+        cursorVertexBuffer = device.makeBuffer(bytes: vertices,
+                                             length: vertices.count * MemoryLayout<Float>.size,
+                                             options: [])
+        
+        cursorIndexBuffer = device.makeBuffer(bytes: indices,
+                                            length: indices.count * MemoryLayout<UInt16>.size,
+                                            options: [])
+    }
+    
+    private func updateCursorBuffers() {
+        // Recreate cursor buffers at new position
+        setupCursorBuffers()
     }
 }
 

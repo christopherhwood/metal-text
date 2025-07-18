@@ -21,6 +21,13 @@ class ViewController: NSViewController {
         view.window?.center()
     }
     
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        
+        // Make text view first responder when view appears
+        view.window?.makeFirstResponder(textView)
+    }
+    
     private func setupTextView() {
         textView = WriterTextView(frame: view.bounds)
         textView.autoresizingMask = [.width, .height]

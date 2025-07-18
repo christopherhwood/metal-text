@@ -57,15 +57,13 @@ fragment float4 textFragmentShader(VertexOut in [[stage_in]],
     return color;
 }
 
-// Cursor rendering with physics-based glow
+// Cursor rendering
 vertex VertexOut cursorVertexShader(VertexIn in [[stage_in]],
                                    constant Uniforms &uniforms [[buffer(1)]]) {
     VertexOut out;
     
-    // Position cursor with slight wobble for organic feel
+    // Position cursor at text insertion point
     float2 position = in.position + uniforms.cursorPosition;
-    float wobble = sin(uniforms.time * 3.0) * 0.5;
-    position.x += wobble;
     
     out.position = uniforms.projectionMatrix * float4(position, 0.0, 1.0);
     out.texCoord = in.texCoord;
@@ -75,21 +73,19 @@ vertex VertexOut cursorVertexShader(VertexIn in [[stage_in]],
 
 fragment float4 cursorFragmentShader(VertexOut in [[stage_in]],
                                    constant Uniforms &uniforms [[buffer(1)]]) {
-    // Create a soft, glowing cursor
-    float2 center = float2(0.5, 0.5);
-    float distance = length(in.texCoord - center);
+    // Simple solid cursor with slight fade at edges
+    float alpha = uniforms.cursorIntensity;
     
-    // Gaussian falloff for smooth glow
-    float intensity = exp(-distance * distance * 8.0);
+    // Fade edges slightly for anti-aliasing
+    float edgeFade = smoothstep(0.0, 0.1, in.texCoord.x) * 
+                     smoothstep(1.0, 0.9, in.texCoord.x) *
+                     smoothstep(0.0, 0.05, in.texCoord.y) * 
+                     smoothstep(1.0, 0.95, in.texCoord.y);
     
-    // Pulse effect
-    float pulse = (sin(uniforms.time * 4.0) + 1.0) * 0.5;
-    intensity *= mix(0.7, 1.0, pulse) * uniforms.cursorIntensity;
+    alpha *= edgeFade;
     
-    // Soft blue-white glow
-    float3 glowColor = mix(float3(0.6, 0.8, 1.0), float3(1.0), intensity);
-    
-    return float4(glowColor * intensity, intensity);
+    // Use text color for cursor
+    return float4(uniforms.textColor.rgb * alpha, alpha);
 }
 
 // Background blur for focus mode

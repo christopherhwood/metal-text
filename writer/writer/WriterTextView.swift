@@ -38,6 +38,11 @@ class WriterTextView: NSView, NSTextInputClient {
     private var insertionPoint: Int = 0
     private var isFirstResponder = false
     
+    // Cursor properties
+    private var cursorPosition: CGPoint = .zero
+    private var showCursor = true
+    private var cursorBlinkTimer: Timer?
+    
     // MARK: - Initialization
     
     override init(frame frameRect: NSRect) {
@@ -89,6 +94,19 @@ class WriterTextView: NSView, NSTextInputClient {
             
             // Layout initial text
             layoutText()
+            
+            // Initialize with some demo text after font atlas is ready
+            // Set insertion point AFTER setting text to avoid it being reset
+            text = "Hello, World!"
+            insertionPoint = text.count
+            
+            // Force layout with correct insertion point
+            layoutText()
+            
+            // Make sure we become first responder to show cursor
+            DispatchQueue.main.async { [weak self] in
+                self?.window?.makeFirstResponder(self)
+            }
         } catch {
             print("Failed to generate font atlas: \(error)")
         }
@@ -105,6 +123,9 @@ class WriterTextView: NSView, NSTextInputClient {
         // Update renderer with new text geometry
         renderer?.updateText(vertices: vertices, indices: indices)
         
+        // Calculate cursor position based on insertion point
+        updateCursorPosition(origin: origin)
+        
         needsTextLayout = false
     }
     
@@ -117,12 +138,14 @@ class WriterTextView: NSView, NSTextInputClient {
     override func becomeFirstResponder() -> Bool {
         isFirstResponder = true
         needsDisplay = true
+        startCursorBlink()
         return true
     }
     
     override func resignFirstResponder() -> Bool {
         isFirstResponder = false
         needsDisplay = true
+        stopCursorBlink()
         return true
     }
     
@@ -138,6 +161,7 @@ class WriterTextView: NSView, NSTextInputClient {
         insertionPoint -= 1
         
         needsTextLayout = true
+        layoutText()
     }
     
     // MARK: - Mouse Events
@@ -167,6 +191,12 @@ class WriterTextView: NSView, NSTextInputClient {
         insertionPoint += str.count
         
         needsTextLayout = true
+        layoutText()
+        
+        // Reset cursor blink on typing
+        showCursor = true
+        renderer?.updateCursorVisibility(true)
+        startCursorBlink()
     }
     
     func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
@@ -203,5 +233,47 @@ class WriterTextView: NSView, NSTextInputClient {
     
     func characterIndex(for point: NSPoint) -> Int {
         return 0
+    }
+    
+    // MARK: - Cursor Management
+    
+    private func startCursorBlink() {
+        stopCursorBlink()
+        showCursor = true
+        renderer?.updateCursorVisibility(showCursor)
+        
+        // Blink at 120 fps means we can control precise blink timing
+        // For a smooth blink, toggle every 0.5 seconds (60 frames at 120fps)
+        cursorBlinkTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.showCursor.toggle()
+            self?.renderer?.updateCursorVisibility(self?.showCursor ?? false)
+        }
+    }
+    
+    private func stopCursorBlink() {
+        cursorBlinkTimer?.invalidate()
+        cursorBlinkTimer = nil
+        showCursor = false
+        renderer?.updateCursorVisibility(false)
+    }
+    
+    private func updateCursorPosition(origin: CGPoint) {
+        // Calculate cursor position based on text before insertion point
+        var x = origin.x
+        let y = origin.y
+        
+        // Get text up to insertion point
+        let textBeforeCursor = String(text.prefix(insertionPoint))
+        
+        // Calculate width of text before cursor using advance width
+        for char in textBeforeCursor {
+            if let glyphInfo = glyphMap[char] {
+                // Use advance width for proper spacing
+                x += glyphInfo.advance
+            }
+        }
+        
+        cursorPosition = CGPoint(x: x, y: y)
+        renderer?.updateCursorPosition(cursorPosition)
     }
 }
