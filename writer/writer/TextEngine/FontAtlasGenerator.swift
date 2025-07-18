@@ -17,6 +17,7 @@ class FontAtlasGenerator {
         let textureRect: CGRect  // UV coordinates in atlas
         let bounds: CGRect       // Glyph bounds for positioning
         let advance: CGFloat     // How far to move for next character
+        let textureExpansion: CGFloat  // Amount of padding included in texture rect
     }
     
     private let device: MTLDevice
@@ -33,7 +34,9 @@ class FontAtlasGenerator {
         // Scale up the font for higher quality atlas
         let scale: CGFloat = 2.0 // Render at 2x for better quality
         let fontSize = CTFontGetSize(font)
-        let scaledFont = CTFontCreateWithName(CTFontCopyPostScriptName(font) ?? "SF Pro Text" as CFString, fontSize * scale, nil)
+        
+        // Preserve font attributes when scaling
+        let scaledFont = CTFontCreateCopyWithAttributes(font, fontSize * scale, nil, nil)
         
         // Create bitmap context for drawing
         let colorSpace = CGColorSpaceCreateDeviceGray()
@@ -50,8 +53,15 @@ class FontAtlasGenerator {
         // Setup for high-quality text rendering
         context.setAllowsAntialiasing(true)
         context.setShouldAntialias(true)
-        context.setAllowsFontSmoothing(true)
-        context.setShouldSmoothFonts(true)
+        // Disable font smoothing for sharper glyphs in atlas
+        context.setAllowsFontSmoothing(false)
+        context.setShouldSmoothFonts(false)
+        
+        // Use high-quality interpolation for smoother curves
+        context.interpolationQuality = .high
+        
+        // Set rendering intent for sharper text
+        context.setRenderingIntent(.absoluteColorimetric)
         
         // Flip coordinate system for Core Text
         context.translateBy(x: 0, y: CGFloat(atlasSize))
@@ -67,7 +77,7 @@ class FontAtlasGenerator {
         var currentY: CGFloat = 0
         var rowHeight: CGFloat = 0
         
-        let padding: CGFloat = 2  // Padding between glyphs to prevent bleeding
+        let padding: CGFloat = 4  // Padding between glyphs to prevent bleeding and allow antialiasing
         
         for char in charactersToRender {
             let cfString = NSString(string: String(char))
@@ -120,16 +130,24 @@ class FontAtlasGenerator {
             
             context.restoreGState()
             
-            // Store glyph info
-            let textureRect = CGRect(x: currentX / CGFloat(atlasSize),
-                                   y: currentY / CGFloat(atlasSize),
-                                   width: glyphWidth / CGFloat(atlasSize),
-                                   height: glyphHeight / CGFloat(atlasSize))
+            // Store glyph info - expand texture rect to include antialiasing
+            let actualGlyphX = currentX + padding
+            let actualGlyphY = currentY + padding
+            let actualGlyphWidth = ceil(scaledBoundingBox.width)
+            let actualGlyphHeight = ceil(scaledBoundingBox.height)
+            
+            // Expand texture rect by 1 pixel on each side to capture antialiasing
+            let expansion: CGFloat = 1.0
+            let textureRect = CGRect(x: (actualGlyphX - expansion) / CGFloat(atlasSize),
+                                   y: (actualGlyphY - expansion) / CGFloat(atlasSize),
+                                   width: (actualGlyphWidth + expansion * 2) / CGFloat(atlasSize),
+                                   height: (actualGlyphHeight + expansion * 2) / CGFloat(atlasSize))
             
             glyphMap[char] = GlyphInfo(character: char,
                                      textureRect: textureRect,
                                      bounds: boundingBox,
-                                     advance: advance)
+                                     advance: advance,
+                                     textureExpansion: expansion / scale)  // Store in unscaled units
             
             // Update position
             currentX += glyphWidth

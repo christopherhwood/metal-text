@@ -24,7 +24,8 @@ class TextLayoutEngine {
     static func layoutText(_ text: String, 
                           at origin: CGPoint,
                           with glyphMap: [Character: FontAtlasGenerator.GlyphInfo],
-                          font: CTFont? = nil) -> [TextQuad] {
+                          font: CTFont? = nil,
+                          scaleFactor: CGFloat = 1.0) -> [TextQuad] {
         
         var quads: [TextQuad] = []
         let baselineY = Float(origin.y)
@@ -36,8 +37,6 @@ class TextLayoutEngine {
             ])
             let line = CTLineCreateWithAttributedString(attrString)
             let runs = CTLineGetGlyphRuns(line) as! [CTRun]
-            
-            var currentX = Float(origin.x)
             
             for run in runs {
                 let glyphCount = CTRunGetGlyphCount(run)
@@ -60,17 +59,27 @@ class TextLayoutEngine {
                     
                     guard let glyphInfo = glyphMap[character] else { continue }
                     
+                    
                     // Use the position from Core Text for proper spacing/kerning
-                    let x = currentX + Float(positions[i].x) + Float(glyphInfo.bounds.minX)
-                    let y = baselineY + Float(glyphInfo.bounds.minY)
-                    let width = Float(glyphInfo.bounds.width)
-                    let height = Float(glyphInfo.bounds.height)
+                    // positions[i].x is already the absolute position from line origin
+                    // Scale both the position and glyph bounds to match the coordinate space
+                    let rawX = Float(origin.x) + Float(positions[i].x * scaleFactor) + Float(glyphInfo.bounds.minX * scaleFactor)
+                    let rawY = baselineY + Float(glyphInfo.bounds.minY * scaleFactor)
+                    
+                    // Align to pixel boundaries for sharper rendering
+                    // Use floor for x to ensure consistent left-side antialiasing
+                    let expansion = Float(glyphInfo.textureExpansion * scaleFactor)
+                    let x = floor(rawX) - expansion  // Compensate for texture expansion
+                    let y = round(rawY) - expansion
+                    let width = Float(glyphInfo.bounds.width * scaleFactor) + expansion * 2
+                    let height = Float(glyphInfo.bounds.height * scaleFactor) + expansion * 2
                     
                     // Get texture coordinates from the glyph info
                     let u1 = Float(glyphInfo.textureRect.minX)
                     let v1 = Float(glyphInfo.textureRect.minY)
                     let u2 = Float(glyphInfo.textureRect.maxX)
                     let v2 = Float(glyphInfo.textureRect.maxY)
+                    
                     
                     // Create vertices for this character quad
                     // y is at the bottom of the glyph (baselineY + minY)
@@ -102,10 +111,16 @@ class TextLayoutEngine {
                     continue
                 }
                 
-                let x = currentX + Float(glyphInfo.bounds.minX)
-                let y = baselineY + Float(glyphInfo.bounds.minY)
-                let width = Float(glyphInfo.bounds.width)
-                let height = Float(glyphInfo.bounds.height)
+                let rawX = currentX + Float(glyphInfo.bounds.minX * scaleFactor)
+                let rawY = baselineY + Float(glyphInfo.bounds.minY * scaleFactor)
+                
+                // Align to pixel boundaries for sharper rendering
+                // Use floor for x to ensure consistent left-side antialiasing
+                let expansion = Float(glyphInfo.textureExpansion * scaleFactor)
+                let x = floor(rawX) - expansion  // Compensate for texture expansion
+                let y = round(rawY) - expansion
+                let width = Float(glyphInfo.bounds.width * scaleFactor) + expansion * 2
+                let height = Float(glyphInfo.bounds.height * scaleFactor) + expansion * 2
                 
                 // Get texture coordinates from the glyph info
                 let u1 = Float(glyphInfo.textureRect.minX)
@@ -128,7 +143,7 @@ class TextLayoutEngine {
                 quads.append(TextQuad(vertices: vertices, character: character))
                 
                 // Advance to next character position
-                currentX += Float(glyphInfo.advance)
+                currentX += Float(glyphInfo.advance * scaleFactor)
             }
             
             return quads

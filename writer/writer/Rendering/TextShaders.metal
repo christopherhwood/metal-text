@@ -40,16 +40,31 @@ vertex VertexOut textVertexShader(VertexIn in [[stage_in]],
 fragment float4 textFragmentShader(VertexOut in [[stage_in]],
                                   texture2d<float> glyphAtlas [[texture(0)]],
                                   constant Uniforms &uniforms [[buffer(1)]]) {
+    // Use linear filtering for smooth anti-aliasing
+    // The font atlas has sharp glyphs, so linear filtering provides the anti-aliasing
     constexpr sampler textureSampler(mag_filter::linear,
-                                   min_filter::linear);
+                                   min_filter::linear,
+                                   mip_filter::none);
     
     float4 textSample = glyphAtlas.sample(textureSampler, in.texCoord);
     
     // Font atlas has white glyphs on black background
     float alpha = textSample.r;
     
-    // For better anti-aliasing, apply a slight adjustment
-    alpha = smoothstep(0.0, 1.0, alpha);
+    // Balanced anti-aliasing for crisp but smooth text with better curves
+    if (alpha < 0.02) {
+        alpha = 0.0; // Cut off very faint pixels
+    } else if (alpha > 0.98) {
+        alpha = 1.0; // Make nearly opaque pixels fully opaque
+    } else {
+        // Slightly wider transition zone for smoother curves
+        // This helps rounded letters like 'e' and 'o' look less sharp
+        alpha = smoothstep(0.3, 0.7, alpha);
+        
+        // Subtle gamma correction for better contrast
+        const float gamma = 0.88;
+        alpha = pow(alpha, gamma);
+    }
     
     // Apply text color with premultiplied alpha
     float4 color = float4(in.color.rgb * alpha, alpha);
