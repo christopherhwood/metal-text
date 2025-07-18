@@ -45,6 +45,7 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
     private var cursorVertexBuffer: MTLBuffer!
     private var cursorIndexBuffer: MTLBuffer!
     private var cursorHeight: Float = 96.0 // Default height for 48pt font at 2x scale
+    private var cursorWidth: Float = 3.5 // Default width for regular weight font
     
     // MARK: - Initialization
     
@@ -350,14 +351,15 @@ class MetalTextRenderer: NSObject, MTKViewDelegate {
     
     func updateCursorHeight(_ height: Float) {
         cursorHeight = height
+        // Scale cursor width proportionally - about 3.5% of height for regular weight
+        cursorWidth = height * 0.035
         updateCursorBuffers()
     }
     
     // MARK: - Cursor Setup
     
     private func setupCursorBuffers() {
-        // Create a thin vertical rectangle for the cursor
-        let cursorWidth: Float = 2.0
+        // Use the dynamically calculated cursor width
         
         // Offset cursor to align with text baseline
         // Text typically extends from baseline down by descent and up by ascent

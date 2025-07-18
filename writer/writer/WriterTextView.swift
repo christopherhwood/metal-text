@@ -152,21 +152,28 @@ class WriterTextView: NSView, NSTextInputClient {
     
     private func calculateCharacterPositions(origin: CGPoint) {
         characterPositions = []
-        var currentX = origin.x
         
         // Get scale factor from window or screen
         let scaleFactor = currentScaleFactor
         
-        // Add position before first character
-        characterPositions.append(currentX)
+        // We need to match the exact positioning logic from TextLayoutEngine
+        // Use Core Text to get proper glyph positions
+        let attrString = NSAttributedString(string: text, attributes: [
+            NSAttributedString.Key(kCTFontAttributeName as String): font
+        ])
+        let line = CTLineCreateWithAttributedString(attrString)
         
-        // Calculate position after each character (advance is already in points, no need to scale)
-        for char in text {
-            if let glyphInfo = glyphMap[char] {
-                let advance = glyphInfo.advance
-                currentX += advance
-                characterPositions.append(currentX)
-            }
+        // Add position before first character
+        let startX = floor(origin.x * scaleFactor) / scaleFactor
+        characterPositions.append(startX)
+        
+        // Get positions after each character
+        for i in 0..<text.count {
+            let offset = CTLineGetOffsetForStringIndex(line, i + 1, nil)
+            // Apply the same floor alignment as in rendering
+            let metalX = (origin.x + offset) * scaleFactor
+            let alignedX = floor(metalX) / scaleFactor
+            characterPositions.append(alignedX)
         }
     }
     
